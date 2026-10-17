@@ -23,21 +23,38 @@ export type Measure = { curtain: number; loaded: number };
 
 const ease = (x: number) => 1 - Math.pow(1 - Math.min(1, Math.max(0, x)), 3);
 
+/**
+ * hold: extra seconds the logo stays on screen after the intro is ready (Lab only, so the visitor can
+ * look at their logo). Infinity = stays until releaseKey changes. The measured "curtain" is always the
+ * time the real site would release, without the extra hold.
+ */
 export default function CrintroPreview({
-  cfg, netLoad, playKey, compact = false, onMeasure,
-}: { cfg: IntroConfig; netLoad: number; playKey: number; compact?: boolean; onMeasure?: (m: Measure) => void }) {
+  cfg, netLoad, playKey, compact = false, onMeasure, hold = 0, releaseKey = 0, onHolding,
+}: {
+  cfg: IntroConfig; netLoad: number; playKey: number; compact?: boolean; onMeasure?: (m: Measure) => void;
+  hold?: number; releaseKey?: number; onHolding?: (h: boolean) => void;
+}) {
   const fill = useRef<HTMLDivElement>(null);
   const tip = useRef<HTMLSpanElement>(null);
   const root = useRef<HTMLDivElement>(null);
   const [out, setOut] = useState(false);
   const measure = useRef(onMeasure);
   measure.current = onMeasure;
+  const holding = useRef(onHolding);
+  holding.current = onHolding;
+  const released = useRef(false);
+  const firstRelease = useRef(releaseKey);
+  useEffect(() => {
+    if (releaseKey !== firstRelease.current) released.current = true;
+  }, [releaseKey]);
 
   useEffect(() => {
     setOut(false);
+    released.current = false;
+    firstRelease.current = releaseKey;
     const MIN = cfg.tempo, RULE_START = 0.45, RULE_END = Math.max(RULE_START + 0.5, cfg.tempo - 0.4), MAX = cfg.tempo + 1.7;
     const t0 = performance.now();
-    let shown = 0, raf = 0, last = t0, done = false;
+    let shown = 0, raf = 0, last = t0, done = false, ready = -1, held = false;
     const loadedAt = (s: number) => Math.min(1, s / netLoad); // simulated "film opening loaded"
     const tick = (now: number) => {
       const s = (now - t0) / 1000;
@@ -56,17 +73,26 @@ export default function CrintroPreview({
         tip.current.style.opacity = shown > 0.01 && shown < 0.995 ? "1" : "0";
       }
       root.current?.classList.toggle("cp-wait", s > MIN && crit < 1 && !forced);
-      if (!done && s >= MIN && shown > 0.995) {
-        done = true;
-        setOut(true);
+      if (ready < 0 && s >= MIN && shown > 0.995) {
+        ready = s; // the real site releases here
         measure.current?.({ curtain: s, loaded: Math.round(crit * 100) });
-        return;
+      }
+      if (ready >= 0 && !done) {
+        const go = released.current || (hold !== Infinity && s >= ready + hold);
+        if (!go && hold === Infinity && !held) { held = true; holding.current?.(true); }
+        if (go) {
+          done = true;
+          if (held) holding.current?.(false);
+          setOut(true);
+          return;
+        }
       }
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [playKey, netLoad, cfg.tempo]);
+    return () => { cancelAnimationFrame(raf); if (held) holding.current?.(false); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playKey, netLoad, cfg.tempo, hold]);
 
   const light = lightness(cfg.bg) > 0.6;
   const ink = light ? "#1b1712" : "#f5ecdc";
@@ -81,7 +107,7 @@ export default function CrintroPreview({
   } as React.CSSProperties;
 
   return (
-    <div className={`cp${compact ? " cp-sm" : ""}`} style={vars} key={playKey}>
+    <div className={`cp${compact ? " cp-sm" : ""}${out ? " cp-done" : ""}`} style={vars} key={playKey}>
       {/* what is behind the curtain: a placeholder for the visitor's own site + H3 film */}
       <div className="cp-site" aria-hidden>
         <div className="cp-site-film" />

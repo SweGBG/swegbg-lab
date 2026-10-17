@@ -7,6 +7,14 @@ import { accentOf, paletteFrom } from "@/lib/palette";
 import { supabase } from "@/lib/supabase";
 import type { User } from "@supabase/supabase-js";
 
+type ShowId = "kort" | "lang" | "hall";
+/** How long the logo stays after the intro is ready. "Kort" is exactly what the real site does. */
+const SHOW: { id: ShowId; name: string; hold: number; note: string }[] = [
+  { id: "kort", name: "Kort", hold: 0, note: "Exakt som på sajten" },
+  { id: "lang", name: "Lång", hold: 2.5, note: "Loggan stannar 2,5 s extra, bara här i Lab" },
+  { id: "hall", name: "Håll kvar", hold: Infinity, note: "Introt väntar tills du klickar" },
+];
+
 /** Intro-studion ("Crink"): your own CRiNTRO loading intro, live, from your logo. */
 export default function IntroStudio({ user, onLogin }: { user: User | null; onLogin: () => void }) {
   const [logo, setLogo] = useState<string | null>("/demo/logo-solkvist.svg");
@@ -20,6 +28,9 @@ export default function IntroStudio({ user, onLogin }: { user: User | null; onLo
   const [accent, setAccent] = useState("#ffb35c");
   const [tempo, setTempo] = useState(1.9);
   const [net, setNet] = useState<NetId>("4g");
+  const [show, setShow] = useState<ShowId>("lang");
+  const [release, setRelease] = useState(0);
+  const [holding, setHolding] = useState(false);
   const [play, setPlay] = useState(0);
   const [tab, setTab] = useState<"studio" | "kod">("studio");
   const [m, setM] = useState<Measure | null>(null);
@@ -29,9 +40,11 @@ export default function IntroStudio({ user, onLogin }: { user: User | null; onLo
   const rule = ruleById(ruleId);
   const cfg: IntroConfig = { logo, w1, w2, sub, rule, bg, accent, tempo };
   const netLoad = NETS.find((n) => n.id === net)!.load;
+  const hold = SHOW.find((x) => x.id === show)!.hold;
+  const letGo = () => setRelease((r) => r + 1);
 
   // replay shortly after every change, so the preview always shows the current settings
-  const sig = JSON.stringify({ logo, w1, w2, sub, ruleId, bg, accent, tempo, net });
+  const sig = JSON.stringify({ logo, w1, w2, sub, ruleId, bg, accent, tempo, net, show });
   useEffect(() => {
     setM(null);
     const id = setTimeout(() => setPlay((p) => p + 1), 350);
@@ -103,6 +116,13 @@ const MAX  = ${(tempo + 1.7).toFixed(1)};  // sekunder (dåligt nät)
             />
           </section>
           <section>
+            <div className="h">VISA LOGGAN</div>
+            <div className="seg full">
+              {SHOW.map((x) => <button key={x.id} className={x.id === show ? "on" : ""} onClick={() => setShow(x.id)}>{x.name}</button>)}
+            </div>
+            <p className="note">{SHOW.find((x) => x.id === show)!.note}</p>
+          </section>
+          <section>
             <div className="h">02 · NAMN & UNDERTEXT</div>
             <div className="row2">
               <label className="inp"><input value={w1} onChange={(e) => setW1(e.target.value)} placeholder="Ord 1" maxLength={22} /></label>
@@ -164,11 +184,16 @@ const MAX  = ${(tempo + 1.7).toFixed(1)};  // sekunder (dåligt nät)
           {tab === "studio" ? (
             <div className="devices">
               <figure className="desk">
-                <div className="scr"><CrintroPreview cfg={cfg} netLoad={netLoad} playKey={play} onMeasure={setM} /></div>
+                <div className={`scr${holding ? " can-release" : ""}`} onClick={holding ? letGo : undefined}>
+                  <CrintroPreview cfg={cfg} netLoad={netLoad} playKey={play} onMeasure={setM} hold={hold} releaseKey={release} onHolding={setHolding} />
+                  {holding && <button className="hold-hint" onClick={(e) => { e.stopPropagation(); letGo(); }}>Klicka för att släppa introt</button>}
+                </div>
                 <figcaption>DATOR</figcaption>
               </figure>
               <figure className="phone">
-                <div className="scr"><CrintroPreview cfg={cfg} netLoad={netLoad} playKey={play} compact /></div>
+                <div className={`scr${holding ? " can-release" : ""}`} onClick={holding ? letGo : undefined}>
+                  <CrintroPreview cfg={cfg} netLoad={netLoad} playKey={play} compact hold={hold} releaseKey={release} />
+                </div>
                 <figcaption>MOBIL</figcaption>
               </figure>
             </div>
