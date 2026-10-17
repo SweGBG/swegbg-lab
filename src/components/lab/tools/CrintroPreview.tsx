@@ -17,6 +17,8 @@ export type IntroConfig = {
   bg: string;
   accent: string;
   tempo: number; // seconds until the curtain at the earliest (MIN)
+  shine?: boolean; // a light sweep over the logo (only where the logo is)
+  rim?: boolean; // a soft edge light in the accent colour
 };
 
 export type Measure = { curtain: number; loaded: number };
@@ -120,10 +122,13 @@ export default function CrintroPreview({
       <div ref={root} className={`cp-loader${out ? " cp-out" : ""}`}>
         <div className="cp-inner">
           {cfg.logo && (
-            <div className="cp-logo">
+            <div className={`cp-logo${cfg.shine ? " shine" : ""}${cfg.rim ? " rim" : ""}`}
+              style={{ "--cp-logo": `url("${cfg.logo}")` } as React.CSSProperties}>
               <span className="cp-glow" />
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={cfg.logo} alt="" />
+              <span className="cp-mark">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={cfg.logo} alt="" />
+              </span>
             </div>
           )}
           <p className="cp-word">

@@ -3,7 +3,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import FileDrop from "../FileDrop";
 import CrintroPreview, { type IntroConfig, type Measure } from "./CrintroPreview";
 import { NETS, RULES, ruleById, type NetId } from "@/lib/rules";
-import { accentOf, paletteFrom } from "@/lib/palette";
+import { accentOf, hex, paletteFrom } from "@/lib/palette";
+import { analyse, process as cleanLogo, type LogoInfo, type Shape } from "@/lib/logo";
 import { supabase } from "@/lib/supabase";
 import type { User } from "@supabase/supabase-js";
 
@@ -36,15 +37,26 @@ export default function IntroStudio({ user, onLogin }: { user: User | null; onLo
   const [m, setM] = useState<Measure | null>(null);
   const [saved, setSaved] = useState<string>("");
   const objUrl = useRef<string | null>(null);
+  // logo clean-up (all in the browser)
+  const [src, setSrc] = useState<string>("/demo/logo-solkvist.svg"); // the original file
+  const [info, setInfo] = useState<LogoInfo | null>(null);
+  const [removeBg, setRemoveBg] = useState(false);
+  const [strength, setStrength] = useState(0.5);
+  const [shape, setShape] = useState<Shape>("fri");
+  const [shine, setShine] = useState(true);
+  const [rim, setRim] = useState(false);
+  const [magic, setMagic] = useState("");
+  const [busy, setBusy] = useState(false);
+  const outUrl = useRef<string | null>(null);
 
   const rule = ruleById(ruleId);
-  const cfg: IntroConfig = { logo, w1, w2, sub, rule, bg, accent, tempo };
+  const cfg: IntroConfig = { logo, w1, w2, sub, rule, bg, accent, tempo, shine, rim };
   const netLoad = NETS.find((n) => n.id === net)!.load;
   const hold = SHOW.find((x) => x.id === show)!.hold;
   const letGo = () => setRelease((r) => r + 1);
 
   // replay shortly after every change, so the preview always shows the current settings
-  const sig = JSON.stringify({ logo, w1, w2, sub, ruleId, bg, accent, tempo, net, show });
+  const sig = JSON.stringify({ logo, w1, w2, sub, ruleId, bg, accent, tempo, net, show, shine, rim });
   useEffect(() => {
     setM(null);
     const id = setTimeout(() => setPlay((p) => p + 1), 350);
@@ -56,16 +68,49 @@ export default function IntroStudio({ user, onLogin }: { user: User | null; onLo
     if (objUrl.current) URL.revokeObjectURL(objUrl.current);
     const url = URL.createObjectURL(f); // read locally, never uploaded
     objUrl.current = url;
-    setLogo(url);
     setFile({ name: f.name, size: f.size });
-    try {
-      const pal = await paletteFrom(url, 4);
-      if (pal.length) {
-        setColors(pal);
-        setAccent(accentOf(pal));
-      }
-    } catch { /* keep the old colours */ }
+    setShape("fri");
+    setMagic("");
+    let found: LogoInfo | null = null;
+    try { found = await analyse(url); } catch { /* unreadable: show it as it is */ }
+    setInfo(found);
+    // magic: a logo on a flat colour gets its background removed straight away
+    const auto = !!found && !found.transparent && found.uniform > 0.8;
+    setRemoveBg(auto);
+    setStrength(0.5);
+    if (auto && found?.bg) setMagic(`Enfärgad bakgrund hittad (${hex(found.bg)}) och borttagen. Klicka "Behåll" för originalet.`);
+    else if (found?.transparent) setMagic("Loggan är redan genomskinlig. Perfekt.");
+    else if (found) setMagic("Bakgrunden är inte enfärgad. Prova Rund eller Ruta i stället.");
+    setSrc(url);
   };
+
+  // run the clean-up whenever the logo or a clean-up setting changes
+  useEffect(() => {
+    const plain = !removeBg && shape === "fri";
+    let off = false;
+    const id = setTimeout(async () => {
+      let url = src;
+      if (!plain) {
+        setBusy(true);
+        try {
+          const out = await cleanLogo(src, { removeBg, bg: info?.bg ?? null, strength, shape });
+          if (off) return URL.revokeObjectURL(out.url);
+          url = out.url;
+        } catch { url = src; }
+        setBusy(false);
+      }
+      if (outUrl.current && outUrl.current !== url) URL.revokeObjectURL(outUrl.current);
+      outUrl.current = url === src ? null : url;
+      setLogo(url);
+      if (src !== "/demo/logo-solkvist.svg") {
+        try {
+          const pal = await paletteFrom(url, 4); // colours from what is left (no background colour)
+          if (!off && pal.length) { setColors(pal); setAccent(accentOf(pal)); }
+        } catch { /* keep the old colours */ }
+      }
+    }, plain ? 0 : 140);
+    return () => { off = true; clearTimeout(id); };
+  }, [src, removeBg, strength, shape, info]);
 
   const code = useMemo(() => `// CRiNTRO Loader – dina inställningar
 const WORD = ["${w1}", "${w2}"];      // ord 2 får accentfärgen
@@ -80,8 +125,9 @@ const MAX  = ${(tempo + 1.7).toFixed(1)};  // sekunder (dåligt nät)
           box-shadow: 0 0 12px ${rule.glow}; }
 .tip    { /* ${rule.hint} */ }
 
+// loggan: ${removeBg ? "bakgrund borttagen" : "original"}, form ${shape}${shine ? ", glans" : ""}${rim ? ", kantljus" : ""}
 // + lib/crintro.ts laddar din H3-film i bakgrunden
-//   (prioriterad ordning, texture streaming på mobil)`, [w1, w2, sub, tempo, bg, accent, rule]);
+//   (prioriterad ordning, texture streaming på mobil)`, [w1, w2, sub, tempo, bg, accent, rule, removeBg, shape, shine, rim]);
 
   const save = async () => {
     const sb = supabase();
@@ -90,7 +136,7 @@ const MAX  = ${(tempo + 1.7).toFixed(1)};  // sekunder (dåligt nät)
     const { error } = await sb.from("lab_intros").insert({
       user_id: user.id,
       name: `${w1} ${w2}`.trim() || "Mitt intro",
-      settings: { w1, w2, sub, ruleId, bg, accent, tempo, colors }, // never the logo file itself
+      settings: { w1, w2, sub, ruleId, bg, accent, tempo, colors, logo: { removeBg, strength, shape, shine, rim } }, // never the logo file itself
     });
     setSaved(error ? "Kunde inte spara" : "Sparat ✓");
     setTimeout(() => setSaved(""), 2500);
@@ -112,8 +158,39 @@ const MAX  = ${(tempo + 1.7).toFixed(1)};  // sekunder (dåligt nät)
             <div className="h">01 · DIN LOGGA</div>
             <FileDrop
               accept="image/*" label="Välj eller släpp din logga" hint="PNG, SVG, JPG eller WebP" file={file} onFile={onFile}
-              thumb={logo ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={logo} alt="" /> : undefined}
+              thumb={logo ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={logo} alt="" className="chk" /> : undefined}
             />
+            <div className={`lt${busy ? " busy" : ""}`}>
+              <div className="lt-row">
+                <span>Bakgrund</span>
+                <div className="seg mini">
+                  <button className={!removeBg ? "on" : ""} onClick={() => setRemoveBg(false)}>Behåll</button>
+                  <button className={removeBg ? "on" : ""} disabled={!info?.bg} title={info?.bg ? "" : "Ingen enfärgad bakgrund att ta bort"}
+                    onClick={() => setRemoveBg(true)}>Ta bort</button>
+                </div>
+                {info?.bg && <i className="lt-sw" style={{ background: hex(info.bg) }} title="Bakgrundsfärgen vi hittade" />}
+              </div>
+              {removeBg && (
+                <div className="lt-row">
+                  <span>Styrka</span>
+                  <input className="range" type="range" min={0} max={1} step={0.05} value={strength} onChange={(e) => setStrength(+e.target.value)} />
+                </div>
+              )}
+              <div className="lt-row">
+                <span>Form</span>
+                <div className="seg mini">
+                  {(["fri", "rund", "ruta"] as Shape[]).map((x) => (
+                    <button key={x} className={shape === x ? "on" : ""} onClick={() => setShape(x)}>{x === "fri" ? "Fri" : x === "rund" ? "Rund" : "Ruta"}</button>
+                  ))}
+                </div>
+              </div>
+              <div className="lt-row">
+                <span>Magi</span>
+                <button className={`chip${shine ? " on" : ""}`} onClick={() => setShine(!shine)}>✦ Glans</button>
+                <button className={`chip${rim ? " on" : ""}`} onClick={() => setRim(!rim)}>◎ Kantljus</button>
+              </div>
+              {magic && <p className="note magic">{magic}</p>}
+            </div>
           </section>
           <section>
             <div className="h">VISA LOGGAN</div>
