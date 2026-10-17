@@ -4,6 +4,7 @@ Lek med din sajt: verktyg från SweGBG som körs helt i webbläsaren. Inga filer
 
 - **Intro-studion (Crink)** – ditt eget CRiNTRO-laddintro från din logga, live i dator och mobil.
 - **Scrollfilm** – dra genom en H3-film (din egen mp4 eller en demo) som den spelas på sajten.
+- **Sajt-preview** – din egen startsida (bransch, logga, tjänster, kontakt), live i dator/mobil, och nedladdningsbar som EN offline HTML-fil.
 
 Live: https://lab.swegbg.com · Repo: SweGBG/swegbg-lab · Next.js 16 · Supabase (inloggning)
 
@@ -34,6 +35,9 @@ src/components/lab/Login.tsx        magisk länk
 src/components/lab/tools/IntroStudio.tsx
 src/components/lab/tools/CrintroPreview.tsx   samma laddintro som på kundsajterna
 src/components/lab/tools/ScrollFilm.tsx
+src/components/lab/tools/SitePreview.tsx      #sajt
+src/lib/sitegen.ts                  bygger hela HTML-filen (ingen extern kod, loggan inbäddad en gång)
+src/lib/logo.ts                     ta bort bakgrund, beskär, rund/ruta-ram
 src/lib/frames.ts                   mp4 → rutor i webbläsaren, texture streaming
 src/lib/palette.ts                  färger ur loggan
 src/lib/rules.ts                    strecketsstilar + simulerade nät

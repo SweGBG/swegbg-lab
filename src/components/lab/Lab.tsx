@@ -3,17 +3,20 @@ import { useEffect, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import IntroStudio from "./tools/IntroStudio";
 import ScrollFilm from "./tools/ScrollFilm";
+import SitePreview from "./tools/SitePreview";
 import Login from "./Login";
 import { authEnabled, supabase } from "@/lib/supabase";
 
 /* SweGBG Lab: a tool list on the left (like a model list), the active tool on the right.
  * Every tool runs in the visitor's browser. Supabase is only used to log in and save settings. */
-type ToolId = "intro" | "film";
+type ToolId = "intro" | "film" | "sajt";
 const TOOLS: { id: ToolId | null; name: string; sub: string; tags: [string, string][]; icon: React.ReactNode }[] = [
   { id: "intro", name: "Intro-studion", sub: "Ditt laddintro, live", tags: [["CRINK", "g"], ["LOGGA", ""], ["LIVE", "c"]],
     icon: <path d="M4 18h16M4 18l3-8 4 4 3-7 3 11" /> },
   { id: "film", name: "Scrollfilm", sub: "Dra genom din film", tags: [["H3", "g"], ["VIDEO", ""], ["MOBIL", "c"]],
     icon: <><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M10 9l5 3-5 3z" /></> },
+  { id: "sajt", name: "Sajt-preview", sub: "Din sajt, spara som fil", tags: [["NY", "g"], ["HTML", ""], ["OFFLINE", "c"]],
+    icon: <><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M3 9h18M7 13h6M7 16h4" /></> },
   { id: null, name: "Före / efter", sub: "Gammal mot ny", tags: [["SNART", "s"]], icon: <><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M12 3v18" /></> },
   { id: null, name: "Fartmätaren", sub: "Hur seg är din sajt?", tags: [["SNART", "s"]], icon: <path d="M12 14l4-4M4 18a8 8 0 1116 0" /> },
   { id: null, name: "Reel-generatorn", sub: "Instagram på 1 min", tags: [["SNART", "s"]], icon: <><rect x="7" y="3" width="10" height="18" rx="2" /><path d="M10 9l4 3-4 3z" /></> },
@@ -26,7 +29,7 @@ export default function Lab() {
 
   // the active tool lives in the address (#film), so links and the back button work
   useEffect(() => {
-    const read = () => setTool(location.hash === "#film" ? "film" : "intro");
+    const read = () => setTool(location.hash === "#film" ? "film" : location.hash === "#sajt" ? "sajt" : "intro");
     read();
     addEventListener("hashchange", read);
     return () => removeEventListener("hashchange", read);
@@ -41,7 +44,7 @@ export default function Lab() {
   }, []);
 
   const go = (id: ToolId) => {
-    history.replaceState(null, "", id === "film" ? "#film" : "#intro");
+    history.replaceState(null, "", `#${id}`);
     setTool(id);
   };
 
@@ -81,7 +84,7 @@ export default function Lab() {
       </aside>
 
       <main className="main">
-        {tool === "intro" ? <IntroStudio user={user} onLogin={() => setLogin(true)} /> : <ScrollFilm />}
+        {tool === "intro" ? <IntroStudio user={user} onLogin={() => setLogin(true)} /> : tool === "film" ? <ScrollFilm /> : <SitePreview />}
       </main>
 
       {login && <Login onClose={() => setLogin(false)} />}
