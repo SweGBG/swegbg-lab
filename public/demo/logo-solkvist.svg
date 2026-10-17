@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <!-- invented demo brand for SweGBG Lab: "Bageri Solkvist" -->
+  <defs>
+    <radialGradient id="sun" cx=".5" cy=".42" r=".6"><stop offset="0" stop-color="#ffe2a8"/><stop offset="1" stop-color="#f2b45a"/></radialGradient>
+    <linearGradient id="loaf" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e9a95a"/><stop offset="1" stop-color="#a8642a"/></linearGradient>
+  </defs>
+  <circle cx="100" cy="100" r="96" fill="#f6efe2"/>
+  <circle cx="100" cy="100" r="86" fill="none" stroke="#8a5a2b" stroke-width="4"/>
+  <circle cx="100" cy="100" r="78" fill="none" stroke="#8a5a2b" stroke-width="1.5" stroke-dasharray="2 5"/>
+  <g stroke="#e7a64c" stroke-width="5" stroke-linecap="round">
+    <path d="M100 34v14M62 46l8 11M138 46l-8 11M44 76l13 5M156 76l-13 5"/>
+  </g>
+  <circle cx="100" cy="100" r="34" fill="url(#sun)"/>
+  <path d="M42 128c6-34 110-34 116 0 2 9-6 14-14 14H56c-8 0-16-5-14-14z" fill="url(#loaf)" stroke="#7a4a20" stroke-width="3"/>
+  <g stroke="#f6d39a" stroke-width="5" stroke-linecap="round" fill="none">
+    <path d="M70 116c4-7 9-10 14-11M96 112c4-7 9-10 14-11M122 116c4-7 8-10 12-10"/>
+  </g>
+  <text x="100" y="170" text-anchor="middle" font-family="Georgia, serif" font-size="17" font-weight="700" fill="#7a4a20" letter-spacing="3">SOLKVIST</text>
+</svg>
